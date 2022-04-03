@@ -2,7 +2,7 @@
 	"name": "vietnam-point",
 	"version": "0.0.1",
 	"scripts": {
-		"dev": "svelte-kit dev --port 1973",
+		"dev": "svelte-kit dev --port 1924 --host",
 		"build": "svelte-kit build",
 		"package": "svelte-kit package",
 		"preview": "svelte-kit preview",
@@ -30,6 +30,7 @@
 		"prettier-plugin-svelte": "^2.5.0",
 		"svelte": "^3.44.0",
 		"svelte-check": "^2.2.6",
+		"svelte-feather-icons": "^3.5.1",
 		"svelte-preprocess": "^4.10.1",
 		"tailwindcss": "^3.0.12",
 		"tslib": "^2.3.1",
