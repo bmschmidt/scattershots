@@ -1,78 +1,91 @@
 <script lang="ts">
   // Why does the regular import not work?
 
+  const name = 'wiki-1'
   import Scatterplot from '/node_modules/deepscatter/dist/deepscatter.es.js';
   import { onMount } from 'svelte';
   import Tooltip from '$lib/components/Tooltip.svelte';
-
-  $: field = "port_of_entry"
+  import { dev, browser } from '$app/env'
+  import DoubleSlider from '$lib/components/DoubleSlider.svelte';
+  $: color_field = "topic_top_20"
   $: datum = {};
-  $: show_tooltip = false;
+  $: show_tooltip = true;
 
   const prefs = {
-    "source_url" : 'http://localhost:8080/tiles',
-    "max_points": 11300000,
+    "source_url" : dev ? 'http://localhost:8080/wiki' : "https://static.benschmidt.org/wiki2",
+    "max_points": 5e5,
     "alpha" : 10.25, // Target saturation for the full page.
     "zoom_balance" : 0.22, // Rate at which points increase size. https://observablehq.com/@bmschmidt/zoom-strategies-for-huge-scatterplots-with-three-js
-    "point_size": 7, // Default point size before application of size scaling
-    "background_color": "#331122",
+    "point_size": 3, // Default point size before application of size scaling
+    "background_color": "#221133",
     "click_function": "select('#ident').html(JSON.stringify(datum, undefined, 2))",
     "encoding": {
       jitter_radius : 0.4,
-      filter : {
-      },
-      filter2: {},
-      "color": {
-        "field": field,
-        "range": "okabe",
+      'color': {
+        field: "topic_top_20",
+        range: 'shufbow',
         domain: [-2047, 2047]
       },
-      "y": {
-        field: "ANUMBER",
-        transform: "linear",
-        domain: [100e6, 0],
-        range: [-100, 100] 
-        
+      'x': {
+        field: 'x',
+        transform: 'literal'
       },
-      "x": {
-        field: "DOE", 
-        transform: "linear",
-        range: [-100, 100],
-        domain: [365.25 * (1880 - 1970), 365.25 * 50]
+      'y': {
+        field: 'y',
+        transform: 'literal'
       }
     }
   };
   
-  $: base_prefs = {
-    encoding : {
-      color: {
-        field, 
-        range: "pastel1",
-        domain: [-2047, 2047]
-      },
-      filter: {   
-      },
-      filter2: {    
+  $: position = 'UMAP';
+  $: scatterplot = null
+
+  $: {
+    if (scatterplot && browser) {
+      if (position === 'geo') {
+        scatterplot.plotAPI(
+          {
+            encoding: {
+                "x": {
+                field: "geo.x",
+                transform: "linear",
+                domain: [-180, 180],
+                range: [-15, 15]
+              },
+              "y": {
+                field: "geo.y",
+                transform: "linear",
+                domain: [90, -90],
+                range: [-15, 15]
+              }
+              }
+            }
+        )
+      } else {
+        scatterplot.plotAPI({
+          
+          encoding: {
+          'x': {
+          field: 'x',
+          transform: 'literal'
+        },
+        'y': {
+          field: 'y',
+          transform: 'literal'
+        }
+      }})
       }
     }
   }
-  $: buttons = []
-  $: scatterplot = null
-  $: scale = {
-      domain : () => [],
-      range : () => []
-    };
-  function redo_scale () {
-    scale = scatterplot._renderer.aes.store.color.current.scale
-  }
+
+  $: buttons = ['topic_top_20', 'topic_top_50', 'topic_top_100']
 
   onMount(() => {
-    scatterplot = new Scatterplot("#deepscatter");
-    window.plot = scatterplot;
-    const first_draw = scatterplot.plotAPI(prefs);
+    const p = new Scatterplot("#deepscatter");
+    window.plot = p;
+    const first_draw = p.plotAPI(prefs);
     first_draw.then( () => {
-      buttons = ["port_of_entry", "naturalization_location", "country", "CERT_NUMBER", "NARA location", "SEX", "field_office", "DFO"]
-        redo_scale()
+      scatterplot = p
       scatterplot.tooltip_html = d => {
         show_tooltip = true;
         datum = d;
@@ -84,111 +97,56 @@
       }, 1000)
     })
   })
-  const update_field = function(f) {
-      scatterplot.plotAPI({
-        duration: 0.500,
-        encoding: {
-          'color': {
-            'field': f,
-            'range': 'okabe',
-            'domain': [-2047, 2047]
-          }
-        }
-      }).then(() => {
-        scale = scatterplot._renderer.aes.store.color.current.scale    
-        field = f    
-      })
-  }
-  function r() {
-    const date1 = new Date(1970, 0, this.valueAsNumber - 15)
-    const date2 = new Date(1970, 0, this.valueAsNumber + 15)
-    scatterplot.plotAPI({
-      alpha: 13.5,
-      max_points: 10000,
-      base_point_size: 5,
-      duration: 0.1,
-      encoding: {
-        'filter': {
-          'field': "DOB",
-          op: 'within',
-          a: 15,
-          b: this.valueAsNumber
-        }
-      }
-    })
+  const update_color_field = function(f) {
+    color_field = f    
   }
 
-  $: filter_class = function(val) {
-    scatterplot.plotAPI({
-      alpha: 3.5,
-      max_points: 10000,
-      point_size: 3,
-      duration: 0.01,
-      encoding: {
-        'color': {
-          field, 
-          range: 'okabe',
-          domain: [-2047, 2047]
-        },
-        'filter2': {
-          'field': field,
-          lambda: `d => d=="${val}"`
-        }
-      }
-    })
-  }
+
 $: my_timer = null
-function redo_date() {
-  scatterplot.plotAPI({
-    encoding: {
-      filter: {
-        field: "DOB",
-        op: "within",
-        a: (enddate - startdate) / 2,
-        b: (enddate + startdate) / 2
-      }
-    }
-  })
-}
+
 $: start = 0
 $: end = 1
-$: startdate = (start - .5) * 365.25 * 180
-$: enddate = (end - .5) * 365.25 
-$: if (scatterplot) {
-  enddate;
-  startdate;
-  redo_date()
-}
+
 let show_full_a_files = false;
 let filter_field = null;
 let filter_val = null;
-$: opacity = 3;
-$: point_size = 3;
-$: {
-  if (scatterplot) {
+$: opacity = 23;
+$: point_size = 8;
+/*$: {
+  let filter2 = {
+          'field': "directory_year",
+          op: 'within',
+          a : (end - start) * 40,
+          b : (end + start) / 2 * 20 + 1850
+        }
+  let filter = (filter_val !== null && filter_field !== null) ? {
+          'field': filter_field,
+          lambda: `d => d=="${filter_val}"`
+  } : filter2 */
+//  console.log({filter2, filter})
+//  filter2 = {};
+ $: {  
+  // REACTIVE REPLOT 
+  if (scatterplot && browser) {
+    console.log("PLOTTING")
     scatterplot.plotAPI({
+      duration: .75,
       alpha: opacity,
-      point_size
+      point_size, 
+      encoding: {
+        'color': {
+          field: color_field, 
+          range: 'shufbow',
+          domain: [-2047, 2047]
+        },
+//        filter2,
+//        filter
+//      
+      }
     })
   }
 }
 
-$: {
-  if (scatterplot) {
-    if (filter_val !== null && filter_field !== null) {
-      console.log({filter_field, filter_val})
-      scatterplot.plotAPI(
-        {encoding: {
-          filter: {
-            field: filter_field,
-            lambda: 'd => d=="' + filter_val + '"'
-          }
-        }})
-      } else {
-        scatterplot.plotAPI({encoding: {filter: {}}})
-      }
-  }
-}
 function plotbyx(code) {
   scatterplot.plotAPI({
     encoding: {
@@ -207,20 +165,19 @@ $: n_visible = 0;
 
 <div class="bg-grey-900">
   <div class="fixed z-20">
-    <h1 class="text-xl text-grey-200">A-files</h1>
+    <h1 class="text-xl text-grey-200">Wikipedia</h1>
   </div>
   <div class='w-4/5 ml-5 fixed bottom-0 w-1/3 z-50 inline bg-gray-200/30 mouseover:bg-gray-200/50 grid grid-cols-1'>
-    <details class="inline">
-      <summary>Change x axis</summary>
-      <button on:click={() => plotbyx("DOB")}>Date of Birth</button>
-      <button on:click={() => plotbyx("DOE")}>Date of Entry</button>
-    </details>      
+    <div class="flex flex-row items-center">
+      <button class:bg-gray-500={position=="geo"} class="w-1/2 hover:bg-gray-200 m-2" on:click={() => position="geo"}>Geographic</button>
+      <button class:bg-gray-500={position=="UMAP"} class="w-1/2 hover:bg-gray-200 m-2" on:click={() => position="UMAP"}>UMAP</button>
+    </div>
     <details class="inline">
       <summary>Change point size</summary>
       <div class= "grid grid-flow-col grid-rows-2">
       <div>Opacity</div>
       <div>
-      <input type="range" min={0.2} max={15.0} step = "0.2" bind:value={opacity}/>
+      <input type="range" min={0.2} max={35.0} step = "0.2" bind:value={opacity}/>
     </div>
     <div>Point size</div>
     <div>
@@ -232,11 +189,11 @@ $: n_visible = 0;
   <div id="deepscatter">
     <div>
       <div id="right-overlay" class="overlay right-3 absolute z-50">
-        <details class="inline bg-gray-500">
+        <details class="inline bg-gray-500 open">
           <summary>Change colors</summary>
           <div class=" grid grid-cols-2">
         {#each buttons as b}
-          <div class = "hover:bg-gray-300 rounded m-2 bg-gray-500" on:click={() => update_field(b)}>{b}</div>
+          <div class = "hover:bg-gray-300 rounded m-2 bg-gray-500" on:click={() => update_color_field(b)}>{b}</div>
         {/each}
       </div>
         </details>
@@ -244,19 +201,10 @@ $: n_visible = 0;
       <div class='tooltip overlay left-3 absolute z-50'>
         <Tooltip datum={datum} visible={show_tooltip} bind:filter_field={filter_field} bind:filter_value={filter_val} />
       </div>
-      <div 
-        on:mouseleave={() => scatterplot.plotAPI(base_prefs)}
-        id="color-legend" class="invisible overlay left-0 absolute z-30"
-        >
-        {#each scale.domain().slice(0, 15) as d}
-          <div 
-            on:mouseover={() => filter_class(d)}
-            on:focus={() => filter_class(d)}
-            on:click={() => filter_class(d)}
-            class="legend-div p-3" style="background-color: {scale(d)}">{d}</div>
-        {/each}
-      </div>
     </div>
+    <div class="fixed hidden bottom-20 z-10 w-3/4 r-5">
+      <DoubleSlider bind:start={start} bind:end={end}/>
+    </div>  
     <div id="number visible" class="bg-gray-200 right-20 top-10 rounded-full fixed w-1/8 z-10">
       {n_visible} Visible
     </div>
