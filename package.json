@@ -2,7 +2,7 @@
 	"name": "vietnam-point",
 	"version": "0.0.1",
 	"scripts": {
-		"dev": "svelte-kit dev --port 1924 --host",
+		"dev": "svelte-kit dev --port 2001 --host",
 		"build": "svelte-kit build",
 		"package": "svelte-kit package",
 		"preview": "svelte-kit preview",
@@ -21,7 +21,7 @@
 		"@typescript-eslint/eslint-plugin": "^5.10.1",
 		"@typescript-eslint/parser": "^5.10.1",
 		"autoprefixer": "^10.4.2",
-		"deepscatter": "^2.2.0",
+		"deepscatter": "^2.2.6",
 		"eslint": "^7.32.0",
 		"eslint-config-prettier": "^8.3.0",
 		"eslint-plugin-svelte3": "^3.2.1",

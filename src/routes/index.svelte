@@ -7,24 +7,25 @@
   import Tooltip from '$lib/components/Tooltip.svelte';
   import { dev, browser } from '$app/env'
   import DoubleSlider from '$lib/components/DoubleSlider.svelte';
-  $: color_field = "topic_top_20"
+  $: color_field = "bp_rp"
   $: datum = {};
   $: show_tooltip = true;
 
+  $: point_power = 5;
   const prefs = {
-    "source_url" : dev ? 'http://localhost:8080/wiki' : "https://static.benschmidt.org/wiki2",
-    "max_points": 5e5,
+    "source_url" : dev ? 'http://localhost:8080/gaia' : "https://static.benschmidt.org/gaia",
+    "max_points": 1e5,
     "alpha" : 10.25, // Target saturation for the full page.
     "zoom_balance" : 0.22, // Rate at which points increase size. https://observablehq.com/@bmschmidt/zoom-strategies-for-huge-scatterplots-with-three-js
-    "point_size": 3, // Default point size before application of size scaling
+    "point_size": 4, // Default point size before application of size scaling
     "background_color": "#221133",
     "click_function": "select('#ident').html(JSON.stringify(datum, undefined, 2))",
     "encoding": {
       jitter_radius : 0.4,
       'color': {
-        field: "topic_top_20",
-        range: 'shufbow',
-        domain: [-2047, 2047]
+        field: "bp_rp",
+        range: 'rdbu',
+        domain: [-5, 5]
       },
       'x': {
         field: 'x',
@@ -45,18 +46,19 @@
       if (position === 'geo') {
         scatterplot.plotAPI(
           {
+            duration: 3,
             encoding: {
-                "x": {
-                field: "geo.x",
-                transform: "linear",
-                domain: [-180, 180],
-                range: [-15, 15]
+                "y": {
+                field: "bp_rp",
+                transform: "literal",
+                domain: [20, -10],
+                range: [0, 360]
               },
-              "y": {
-                field: "geo.y",
-                transform: "linear",
-                domain: [90, -90],
-                range: [-15, 15]
+              "x": {
+                field: "abs_mag",
+                transform: "literal",
+                domain: [30, -30],
+                range: [-1, 1]
               }
               }
             }
@@ -78,7 +80,7 @@
     }
   }
 
-  $: buttons = ['topic_top_20', 'topic_top_50', 'topic_top_100']
+  $: buttons = ['bp_rp', 'parallax', 'phot_g_mean_mag', 'transits', 'abs_mag', 'pm_mag']
 
   onMount(() => {
     const p = new Scatterplot("#deepscatter");
@@ -111,7 +113,7 @@ let show_full_a_files = false;
 let filter_field = null;
 let filter_val = null;
 $: opacity = 23;
-$: point_size = 8;
+$: point_size = 2;
 /*$: {
   let filter2 = {
           'field': "directory_year",
@@ -125,6 +127,14 @@ $: point_size = 8;
   } : filter2 */
 //  console.log({filter2, filter})
 //  filter2 = {};
+ const domains = {
+  'bp_rp': [5, -3],
+  'abs_mag': [-5, 0],
+  'pm_mag': [0, 10],
+  'phot_g_mean_mag': [5, 20],
+  'transits': [0, 30]
+ }
+
  $: {  
   // REACTIVE REPLOT 
   if (scatterplot && browser) {
@@ -132,16 +142,18 @@ $: point_size = 8;
     scatterplot.plotAPI({
       duration: .75,
       alpha: opacity,
+      max_points: 10 ** point_power,
       point_size, 
       encoding: {
         'color': {
           field: color_field, 
-          range: 'shufbow',
-          domain: [-2047, 2047]
+          range: 'rdbu',
+          domain: domains[color_field]?? [5, -3]
         },
-//        filter2,
-//        filter
-//      
+        'jitter_radius': {
+          constant: .1,
+          method: 'time'
+        }
       }
     })
   }
@@ -169,8 +181,8 @@ $: n_visible = 0;
   </div>
   <div class='w-4/5 ml-5 fixed bottom-0 w-1/3 z-50 inline bg-gray-200/30 mouseover:bg-gray-200/50 grid grid-cols-1'>
     <div class="flex flex-row items-center">
-      <button class:bg-gray-500={position=="geo"} class="w-1/2 hover:bg-gray-200 m-2" on:click={() => position="geo"}>Geographic</button>
-      <button class:bg-gray-500={position=="UMAP"} class="w-1/2 hover:bg-gray-200 m-2" on:click={() => position="UMAP"}>UMAP</button>
+      <button class:bg-gray-500={position=="geo"} class="w-1/2 hover:bg-gray-200 m-2" on:click={() => position="geo"}>Herzsprung-Russell</button>
+      <button class:bg-gray-500={position=="UMAP"} class="w-1/2 hover:bg-gray-200 m-2" on:click={() => position="UMAP"}>Galactic Coords</button>
     </div>
     <details class="inline">
       <summary>Change point size</summary>
@@ -182,6 +194,10 @@ $: n_visible = 0;
     <div>Point size</div>
     <div>
       <input type="range" min={0.5} max={22.0} step = "0.1" bind:value={point_size}/>
+    </div>
+    <div>Number of points</div>
+    <div>
+      <input type="range" min={4} max={7} step = "0.1" bind:value={point_power}/>
     </div>
   </div>
     </details>
@@ -197,9 +213,6 @@ $: n_visible = 0;
         {/each}
       </div>
         </details>
-      </div>
-      <div class='tooltip overlay left-3 absolute z-50'>
-        <Tooltip datum={datum} visible={show_tooltip} bind:filter_field={filter_field} bind:filter_value={filter_val} />
       </div>
     </div>
     <div class="fixed hidden bottom-20 z-10 w-3/4 r-5">

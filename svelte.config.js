@@ -17,7 +17,7 @@ const config = {
 			default: true
 		},
 		paths: {
-			base: "/wiki-1"
+			base: "/gaia"
 		}
 	}
 };
