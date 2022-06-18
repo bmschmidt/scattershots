@@ -1,6 +1,5 @@
 <script lang="ts">
   // Why does the regular import not work?
-
   const name = 'wiki-1'
   import Scatterplot from '/node_modules/deepscatter/dist/deepscatter.es.js';
   import { onMount } from 'svelte';
