@@ -12,5 +12,5 @@
 </script>
 
 <div class="outline rounded hover:bg-gray-200" on:click={draw}>
-{label}
+  {label}
 </div>

@@ -10,15 +10,11 @@ const config = {
 			postcss: true
 		})
 	],
-
 	kit: {
-		adapter: adapter(),
-		prerender: {
-			default: true
-		},
-		paths: {
-			base: "/gaia"
-		}
+			paths: {
+				base: '/scrollership'
+			},
+			adapter: adapter(),
 	}
 };
 

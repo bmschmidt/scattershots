@@ -12,19 +12,20 @@ title: Billion-point scatterplots
 The European Space Agency has just released version three of the [Gaia mission's](https://sci.esa.int/web/gaia) data about the location of stars in the sky. With many different parameters defined for about 1.8 billion stars, this is the largest dataset with x and y positions for points I know of. And so it's a great opportunity to show off some of the features of the [deepscatter](https://github.com/CreatingData/deepscatter) library I've written for exploring large collections. 
 
 ```api
-max_points: 1000
-point_size: 2
+max_points: 100000
+point_size: 3
 alpha: 7.25
-source_url: "http://localhost:8080/gaia"
+source_url: "https://files.benschmidt.org/tiles/gaia"
 background_color: "#221133"
 zoom:
   bbox: {"x":[-2,2],"y":[-1, 1]}
 encoding:
-  y:
-    field: ix
-    range: [-0.2, 0.2]
-    domain: [5, 10]
-    transform: linear
+  position: literal
+  jitter_radius:
+    constant: 1
+    method: spiral
+  jitter_speed:
+    constant: .01
   color: 
     field: bp_rp
     range: rdbu
@@ -34,18 +35,20 @@ encoding:
 :::
 
 :::chunk
-We'll start off by looking at the 50,000 stars brightest from Earth.  50,000 points is a lot. It's more than enough to count; and it's enough to start to strain many traditional ways of building charts.
+We'll start off by looking at the 50,000 stars brightest from Earth. Here they are flattened out into the shape of the sky using [the Hammer projection](https://en.wikipedia.org/wiki/Hammer_projection). 
 
-The sky is a round dome, so there's not perfect way to render in two-d: what you see here flattens it out using ([the Hammer](https://en.wikipedia.org/wiki/Hammer_projection)) and placing the Milky Way across the equator. 
+50,000 points is a lot. It's more than enough to count; and it's enough to start to strain many traditional ways of building charts.
 
 
 ```api
 max_points: 50e3
 alpha: 20
-point_size: 10
-duration: 5000
+point_size: 4
+duration: 12000
 encoding:
   position: literal
+  jitter_radius:
+    method: null
 zoom:
   bbox: {"x":[-2,2],"y":[-1, 1]}
 ```
@@ -54,7 +57,7 @@ zoom:
 :::chunk
 
 But 50,000 is not enough to see the structure of something like the Milky Way. 
-
+Even showing the 100,000 brightest stars, as here, barely makes the outline visible.
 
 ```api
 duration: 5000
@@ -64,34 +67,14 @@ max_points: 100e3
 :::
 
 ::: chunk
-What if we want to show more than 50,000 points, though? To scale up to
-500,000 points in a chart like this is completely reasonable. So I'm
-going to send another several files now to capture every star in the
-500,000 thousand brightest in the sky.
+Only at half a million points can you really start to see the real structure here--the middle band of the milky way (here represented in [l, b] coordinates
+oriented along the galactic plane.)
 
-A few points, here. One is that pushing this new data to the GPU can be
-**slow**. Often when you visit a page with a scatterplot, you'll get a
-loading screen for a few seconds. That's fine if you can push all the
-data at the start; but with more than a few million points, we need to
-push more or less instantaneously or else we'll get blocking lag
-everytime we add more data. The easiest cycle-- which I've used
-before--is to send things as CSV, parse them into Javascript numbers,
-and then draw from those with canvas. Converting those into
-single-precision floats before sending to the GPU makes rendering fast
-once they're on the GPU: but it does nothing for the period up until
-then.
+At this point you may be seeing squares of data flashing into the display. I'll give some info at the end about
+the data presentation strategy here. Suffice it for now to say now that each star is truly represented as a data point, not just an image;
+and that I'm using WebGL shaders that allow fairly comfortable rendering of millions of points at once on most modern machines.
 
-Luckily, a number of very talented people have been thinking hard about
-the future of data serialization in an age of GPU computation. I'm
-building off of what I find the most attractive of these projects by
-using the [Apache Arrow](http://arrow.apache.org/) format to send data
-to the browser. Arrow uses a standardized binary representation that
-imports directly into typed arrays in Javascript. If you store columns
-as 4-byte floats, this means that you can push the data straight to the
-GPU without having to parse it even once. Apache Arrow files can be
-gzipped before sending; the browser expands them straight into float32
-Typed Arrays, which can be written straight to contiguous blocks of
-pre-allocated buffers on the GPU. (More on allocation strategies below.)
+This open up interesting possibilities for exploring all sort of datasets, including this one.
 
 ``` api
 max_points: 5e5
@@ -111,7 +94,7 @@ encoding:
 ::: chunk
 We can really push the envelope, here. Since I don't know if you're
 using mobile data, I'll leave it to you to decide if you want to play
-with the sliders below that load up to 3 million points into your
+with the sliderslow that load up to 3 million points into your
 screen--about 300MB of data, which compresses down to about 200 that we
 actually have to send. (Most datasets include text or categorical data,
 and so compress much better than this one does.)
@@ -123,9 +106,36 @@ clobber your mobile data limits.
 At this point, I'm shipping about 60 MB of data over the wire in a
 couple hundred files.
 
+```api
+encoding:
+  position: literal
+  color: 
+    field: bp_rp
+    range: rdbu
+    domain: [-5, 5]
+```
+
 ```slider
 min: 1000
-max: 3000000
+max: 3e6
+api:
+  duration: 0.01
+target: max_points
+trans: log
+label: "Number of points"
+```
+
+:::
+
+
+::: chunk
+
+This isn't an image, just a serial drawing of points to the screeen. The basic appearance 
+takes three parameters:
+
+```slider
+min: 1000
+max: 3e6
 api:
   duration: 0.01
 target: max_points
@@ -140,7 +150,7 @@ api:
   duration: 0.01
 target: alpha
 trans: linear
-label: "Global Opacity"
+label: "Global Opacity--how dark or light the screen ought to be"
 ```
 
 ```slider
@@ -149,20 +159,13 @@ max: 10
 api:
   duration: 0.01
 target: point_size
-trans: sqrt
-label: "Point Radius"
+trans: log
+label: "Point size--how many pixels at default zoom for each individual star."
 ```
 
-```api
-encoding:
-  position: literal
-  color: 
-    field: bp_rp
-    range: rdbu
-    domain: [-5, 5]
-```
+
+
 :::
-
 ::: chunk
 
 Because we're plotting these as actual data points,
@@ -171,40 +174,60 @@ any elements of the aesthetics can be configured on the fly.
 Here, for example, I start you off with the points colored
 using D3's 'blues' scales according to their magnitude seen from Earth.
 
-But changing the API call means that each of these points can be displayed according to a different scheme:
+But changing the API call means that each of these points can be displayed according to a different scheme.
 
-```button
-label: blues
-clone: encoding.color
-api:
-  encoding.color.range: "blues"
+```api
+duration: 500
 ```
 
-```button
-label: viridis
-clone: encoding.color
+```buttonset
+label: Color
+values: ["blues", "viridis", "magma", "rainbow", "oranges", "purples", "reds", "cool", "warm", "plasma", "turbo"]
 api:
-  encoding.color.range: "viridis"
+  encoding:
+    color:
+      field: "phot_g_mean_mag"
+      domain: [10, 7]
+      range: "viridis"
+clone:
+  - "encoding.color"
+target: "encoding.color.range"
+
+
 ```
 
-```button
-label: magma
-clone: encoding.color
+Likewise magnitude can be encoded as size, so that brighter stars are larger. 
+
+
+```buttonset
+label: Circle size for brightest stars.
+values: [.1, .5, 1, 2, 5]
 api:
-  encoding.color.range: "magma"
+  encoding:
+    size:
+      field: "phot_g_mean_mag"
+      domain: [11, 6]
+      range: [.1, 10]
+      tranform: linear
+clone:
+  - "encoding.color"
+target: "encoding.size.range[1]"
+
+
 ```
+
+
 :::
 
 :::chunk
-Since deepscatter includes a full grammar of graphics implementation,
-we can also change the variables that we show.
+And we can also change the variables encoded by that color.
 
 ```button
 label: Apparent brightness
 clone: encoding.color
 api:
   encoding.color.field: "phot_g_mean_mag"
-  encoding.color.domain: [10, 4]
+  encoding.color.domain: [15, 4]
 ```
 
 ```button
@@ -215,19 +238,33 @@ api:
   encoding.color.domain: [4, -4]
 ```
 
+
+```button
+label: X position
+clone: encoding.color
+api:
+  encoding.color.field: "x"
+  encoding.color.domain: [-2, 2]
+```
+
+```button
+label: Y position
+clone: encoding.color
+api:
+  encoding.color.field: "y"
+  encoding.color.domain: [-1, 1]
+```
+
 :::
 
 
 ::: chunk
-One interesting aspect of this dataset is that it includes parallax
-angles for the stars, which measure how much their location shifts when
-viewed from different sides of the earth's orbit. Many stars are so far
-away that parallax doesn't exist in the latest data release; but among
-these front few hundred thousand, we have some sense of the difference
-for a great number.
+But Gaia includes more than just brightness information. An especially important
+part of the project's data is that it creates parallax estimates
+for most of the stars it has observed, which measure how much their location shifts when
+viewed from different sides of the earth's orbit.
 
-[![Parallax
-Example](https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Parallax_Example.svg/256px-Parallax_Example.svg.png){width="256"}](https://commons.wikimedia.org/wiki/File:Parallax_Example.svg "Booyabazooka / CC BY-SA (http://creativecommons.org/licenses/by-sa/3.0/)")
+High parallax means that stars move a lot and are close; 
 
 Scaling back to 500K points, I'll change the color encoding to represent
 parallax angles.
@@ -236,6 +273,7 @@ parallax angles.
 max_points: 5e5
 encoding:
   alpha: .5
+  filter: {}
   color:
     field: parallax
     domain: [0, 10]
@@ -275,6 +313,20 @@ api:
       b: 3
 ```
 
+```slider
+label: Exagerration of parallax
+target: 'encoding.filter.range[1]'
+min: 0
+max: .25
+api:
+  encoding:
+    jitter_radius:
+      method: circle
+      field: parallax
+      domain: [0, 100]
+      range: [0, .05]
+```
+
 ``` api
 jitter: circle
 encoding:
@@ -295,20 +347,20 @@ encoding:
 But I promised you a billion points. While Arrow and WebGL allow us to comfortably display tens of millions of points in the browsers, schlepping gigabytes of data directly to your
 browser is unreasonable. Deepscatter waits until until you want to zoom into a region to load the individual points on demand using a customized quadtree implementation.
 
-Some parts of the Gaia set are outside the Milky Way proper; here is the Large [Magellanic Cloud](en.wikipedia.org/wiki/Magellanic_Clouds),
+Some parts of the Gaia set are outside the Milky Way proper; here is the Large [Magellanic Cloud](https://en.wikipedia.org/wiki/Magellanic_Clouds),
 where all of the stars are too far off (100,000 light years) to see.
 
 ``` api
 duration: 10000
 jitter: null
+point_size: 1
 encoding:
+  filter: {}
   jitter_radius: 0
-  alpha: .33
-  size: .2
   color:
     field: bp_rp
     range: rdbu
-    domain: [-5, 5]
+    domain: [5, -5]
 
 zoom:
   bbox:
@@ -387,16 +439,19 @@ Within our own galaxy are areas of
 intense stellar concentration as well. Here is [Omega Centauri](https://en.wikipedia.org/wiki/Omega_Centauri), 
 a globular cluster with 10 million stars in a ball only 150 light-years wide--stars average only 0.1 light years apart.
 
+These points may be overplotted--if so, you may want to adjust the zoom scaling parameter,
+which [I explained more here].
+
 ```api
 duration: 12000
 max_points: 2e5
 zoom:
   bbox: 
     {"x":[0.8319706197989606,0.8394665796325281],"y":[-0.14647132479462066,-0.14157894856028852]}
-
 ```
 
 ```slider
+label: "Change zoom balance"
 target: zoom_balance
 min: 0
 max: 1
@@ -407,7 +462,17 @@ label: Zoom transform
 
 ::: chunk
 
-Let's zoom back out.
+Here's the full scale: Change the zoom balance and scroll back a panel if you wish.
+
+
+```slider
+label: "Change zoom balance"
+target: zoom_balance
+min: 0
+max: 1
+label: Zoom transform
+```
+
 
 ``` api
 encoding:
@@ -417,52 +482,82 @@ zoom:
 ```
 :::
 
-::: chunk
-Now that we've explored various different scales, let me talk about the
-tiling strategy here.
-
-To store this much data in a scatterplot, you need to load on demand. I
-use a quadtree structure where each tile has up to four children. The
-metadata of an Arrow file can contain the names of which children are
-actually loaded; when you zoom in to an area, only the points that are
-actually needed get loaded.
-
-Click the button below to see the outlines of the currently loaded
-tiles. If you've been zooming around, you should see a few big
-rectangles covering the full area, and much smaller ones in just the
-areas we (or you) have looked at.
-
-```method
-label: Show loaded quads
-method: visualize_tiles
-```
-
-It's necessary to use quadtrees instead of just using ordinary map tiles
-because some areas of this chart are much more sparsely populated than
-others. At high levels of zoom, this saves the browser from having to
-request thousands of csvs with just a few points in it; instead, this
-way, we can ensure that all tiles have about 65,000 points. The
-underlying Python code to create these quad tiles is part of the repo
-for this library.
-
-
-``` api
-encoding:
-  position: literal
-```
-:::
 
 ::: chunk
 
-Passing individual data also means 
-that Deepscatter is able to 
+Passing individual data also means that Deepscatter is able to arbitrarily
+change *positions* just like any other aesthetic.
 
+Here's a fairly straightforward plot: the x axis shows the parallax
+to a star with a log transform, and the y
+access shows the apparent magnitude from earth. The color is the absolute magnitude. 
+
+The diagonal lines here show stars of a fixed absolute magnitude: the farther away they are they are
+(x axis), the brighter they look from Earth (y axis).
 
 ``` api
 max_points: 1e6
 point_size: 2
 duration: 2500
 encoding:
+  filter: {}
+  y:
+     field: phot_g_mean_mag
+     transform: linear
+     domain: [15, 2]
+     range: [-3, 1]
+  x:
+     field: parallax
+     domain: [300, .001]
+     range: [-1, 1]
+     transform: log
+  color:
+    field: abs_mag
+    range: magma
+    domain: [5, -5]
+```
+:::
+
+:::chunk
+
+This particular relationship is an identity in this dataset--the absolute magnitudes are calculated directly from
+the parallax and g-band magnitude. If you filter by absolute magnitude, you get straight lines.
+
+```slider
+label: "Show stars with an absolute magnitude around"
+api:
+  duration: 0.001
+  encoding:
+    filter:
+      field: abs_mag
+      op: within
+      a: .1
+      b: 0
+target: "encoding.filter.b"
+min: -5
+max: 5
+```
+
+:::
+
+:::chunk
+
+But other two-d representations from Gaia can show actual relationships.
+A plot common in astronomy
+is the Herzsprung-Russell diagram, 
+which shows absolute magnitude plotted against color. The primary line visible here 
+runs from upper-left to lower-right, and shows main sequence stars, which follow
+standard relationships of mass, age, color, and luminosity; the points off the line to the right
+are giants which can have substantially larger magnitudes and burn farther in the red spectrum.
+
+(I think? I'm no astronomer.)
+
+``` api
+max_points: 1e6
+point_size: 2
+duration: 2500
+encoding:
+  filter: {}
   y:
      field: abs_mag
      domain: [-10, 15]
@@ -476,31 +571,135 @@ encoding:
   color:
     field: bp_rp
     range: rdbu
-    domain: [-5, 5]
+    domain: [5, -5]
 
 ```
+
 :::
 
 :::chunk
 
+This is an interesting case of data shaping because so many of the stars appear to be giants;
+but that's only because high magnitude stars are definitionally easier to see when they're farther away.
+
+If we filter to just stars with a parallax over fifty, 
+
+```api
+alpha: 100
+point_size: 20
+encoding:
+  filter:
+    field: parallax
+    op: gt
+    a: 50
+```
+
 ```slider
-label: Filter to parallax
-target: encoding.filter.b
-min: 0
-max: 50
-api:
-  alpha: 100
-  point_size: 10
+target: "encoding.filter.a"
+api: 
+  alpha: 1e6
   encoding:
     filter:
       field: parallax
-      op: within
-      a: 0.5
-      b: 3
+      op: gt
+      a: 50
+label: "Show stars w/ parallax above"
+min: 0
+max: 200
+value: 50
+trans: log
 ```
-
 
 :::
 
+:::chunk
+
+# Technical Details
+
+Enough about stars, about which I know little, and time for 
+some talk about data and tiling.
+:::
+
+
+:::chunk
+
+## Formats
+Lot of pages have a long loading bar when you open them up. That's fine if you can push all the
+data at the start; but with more than a few million points, we need to
+push more or less instantaneously or else we'll get blocking lag
+everytime we add more data. The easiest cycle-- which I've used
+before--is to send things as CSV, parse them into Javascript numbers,
+and then draw from those with canvas. Converting those into
+single-precision floats before sending to the GPU makes rendering fast
+once they're on the GPU: but it does nothing for the period up until
+then.
+
+Luckily, a number of very talented people have been thinking hard about
+the future of data serialization in an age of GPU computation. I'm
+building off of what I find the most attractive of these projects by
+using the [Apache Arrow](http://arrow.apache.org/) format to send data
+to the browser. Arrow uses a standardized binary representation that
+imports directly into typed arrays in Javascript. If you store columns
+as 4-byte floats, this means that you can push the data straight to the
+GPU without having to parse it even once. Apache Arrow files can be
+gzipped before sending; the browser expands them straight into float32
+Typed Arrays, which can be written straight to contiguous blocks of
+pre-allocated buffers on the GPU. This means that although this site uses javascript
+in many ways, the big core memory object are essentially being written on the server using fast C++ 
+code called from python, and then mapped byte-for-byte to the GPU without having
+to actually manipulate them as native structures in either Python or Javascript. 
+:::
+
+
+:::chunk
+
+To store this much data in a scatterplot, you need to load on demand. I
+use a quadtree structure where each tile has up to four children. The
+metadata of an Arrow file can contain the names of which children are
+actually loaded; when you zoom in to an area, only the points that are
+actually needed get loaded.
+
+
+It's necessary to use quadtrees instead of just using ordinary map tiles
+because some areas of this chart are much more sparsely populated than
+others. At high levels of zoom, this saves the browser from having to
+request thousands of csvs with just a few points in it; instead, this
+way, we can ensure that all tiles have about 65,000 points. The
+underlying Python code to create these quad tiles is part of the repo
+for this library.
+
+
+``` api
+encoding:
+  position: literal
+  filter: {}
+alpha: 6
+point_size: 1
+zoom:
+  bbox: {"x":[-2, 2],"y":[-1, 1]}
+```
+
+:::
+
+:::chunk
+
+Click the button below to see the outlines of the currently loaded
+tiles. If you've been zooming around, you should see a few big
+rectangles covering the full area, and much smaller ones in just the
+areas we (or you) have looked at.
+
+```method
+label: Show loaded quads
+method: visualize_tiles
+```
+
+:::
+
+
+:::chunk
+
+If you have questions, comments, or ideas, contact me through e-mail, [on Twitter](https://twitter.com/benmschmidt), or join the [Deepscatter slack](https://join.slack.com/t/deepscatter/shared_invite/zt-17kbudjhj-zVzt26zddEpSyACe2E71Fw)
+
+:::
 
 :::
